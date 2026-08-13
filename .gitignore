@@ -1,0 +1,12 @@
+# build output
+*.exe
+Output/
+
+# runtime files (these live in %LOCALAPPDATA% normally, but just in case)
+config.json
+*.log
+
+# editor/OS cruft
+.vs/
+desktop.ini
+Thumbs.db
