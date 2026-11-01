@@ -10,3 +10,8 @@ config.json
 .vs/
 desktop.ini
 Thumbs.db
+
+# local build/backups
+*.bak-*
+*.lnk
+HOW-TO-TEST.md

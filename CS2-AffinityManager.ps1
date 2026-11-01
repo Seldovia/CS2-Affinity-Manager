@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$background,
     [switch]$quick,
     [switch]$configureNow,
@@ -8,7 +8,7 @@ param(
 )
 
 # ============================================================
-#  CS2 Affinity Manager  --  v1.9.2
+#  CS2 Affinity Manager  --  v1.9.4
 #  WPF / PowerShell.  Compile with ps2exe:
 #
 #    Release build (installer ships this one):
@@ -167,7 +167,9 @@ function Get-ReadableColor {
     # Nothing in-hue cleared the bar (very saturated color on a mid-tone bg).
     # Fall back to plain white/black, which always will.
     if ($bestCr -lt $MinRatio) {
-        return $(if ($bgLum -lt 0.5) { "#FFFFFF" } else { "#101010" })
+        # Whichever of white/near-black actually contrasts more (matches theme.py) - a luminance
+        # guess picks wrong for mid-tones like #379B95, where white only reaches 3.3:1.
+        return $(if ((Get-ContrastRatio "#FFFFFF" $Background) -ge (Get-ContrastRatio "#101010" $Background)) { "#FFFFFF" } else { "#101010" })
     }
     return $best
 }
@@ -185,7 +187,9 @@ function Get-Shade([string]$hex, [double]$delta) {
 # is derived and contrast-corrected against the surface it lands on.
 # ============================================================
 $script:ThemeCatalog = [ordered]@{
-    "Toothpaste" = @{ Chrome = "#A8396E"; Panel = "#1E1E1E"; Border = "#2E2E2E"; Text = "#EAEAEA"; Muted = "#8A8A8A"; Accent = "#40CEC9"; Blurb = "The original -- wine chrome, mint accent" }
+    "Toothpaste" = @{ Chrome = "#007474"; Panel = "#379B95"; Border = "#379B95"; Text = "#0B2E2C"; Muted = "#4F8A85"; Accent = "#BF1363"; Header = "#BF1363"; DropLine = "#910E4B"; ConsoleBg = "#101010"; Blurb = "The house style -- light cyan page, dark cyan boxes, wine header with dark-wine trim, gradient title" }
+    "Inverted"   = @{ Chrome = "#BF1363"; Panel = "#1E1E1E"; Border = "#2E2E2E"; Text = "#EAEAEA"; Muted = "#8A8A8A"; Accent = "#43B3AE"; Blurb = "Toothpaste inverted -- wine chrome, mint accent" }
+    "Lagoon"     = @{ Chrome = "#0E2E2C"; Panel = "#132826"; Border = "#43B3AE"; Text = "#DDEFED"; Muted = "#7D9E9B"; Accent = "#BF1363"; Blurb = "Toothpaste lagoon -- dark mint, mint lines, wine accent" }
     "Midnight"   = @{ Chrome = "#12161C"; Panel = "#1A1F27"; Border = "#2B3340"; Text = "#E6EDF3"; Muted = "#8B98A8"; Accent = "#4AB8FF"; Blurb = "Near-black, cool blue accent" }
     "Graphite"   = @{ Chrome = "#1B1B1B"; Panel = "#242424"; Border = "#383838"; Text = "#ECECEC"; Muted = "#909090"; Accent = "#FF9F43"; Blurb = "Neutral grey, amber accent" }
     "Nord"       = @{ Chrome = "#2E3440"; Panel = "#3B4252"; Border = "#4C566A"; Text = "#ECEFF4"; Muted = "#9AA5B4"; Accent = "#88C0D0"; Blurb = "Muted arctic blue-grey" }
@@ -214,36 +218,44 @@ function Resolve-Theme([string]$name) {
     if (-not $script:ThemeCatalog.Contains($name)) { $name = "Toothpaste" }
     $b       = $script:ThemeCatalog[$name]
     $isLight = (Get-RelativeLuminance $b.Panel) -gt 0.5
+    # Toothpaste house rules (2026-09-15): one flat cyan for every surface (no
+    # derived shades), and the wine accent used exactly as authored, never
+    # contrast-walked. Every other theme keeps the old derived-shade math.
+    $flat  = ($name -eq "Toothpaste")
+    $exact = ($name -eq "Toothpaste")
 
     $t = @{
         Name       = $name
         Chrome     = $b.Chrome
+        Band       = $(if ($b.Band) { $b.Band } elseif ($flat) { $b.Panel } else { $b.Chrome })
         Panel      = $b.Panel
-        PanelAlt   = $(if ($isLight) { Get-Shade $b.Panel -0.04 } else { Get-Shade $b.Panel -0.03 })
-        PanelHi    = $(if ($isLight) { Get-Shade $b.Panel -0.07 } else { Get-Shade $b.Panel  0.05 })
+        PanelAlt   = $(if ($flat) { $b.Chrome } elseif ($isLight) { Get-Shade $b.Panel -0.04 } else { Get-Shade $b.Panel -0.03 })
+        PanelHi    = $(if ($flat) { $b.Chrome } elseif ($isLight) { Get-Shade $b.Panel -0.07 } else { Get-Shade $b.Panel  0.05 })
         Border     = $b.Border
         Text       = $b.Text
         Muted      = $b.Muted
         Accent     = $b.Accent
-        AccentHov  = Get-Shade $b.Accent $(if ($isLight) { -0.10 } else { 0.10 })
-        OnAccent   = $(if ((Get-RelativeLuminance $b.Accent) -gt 0.45) { "#101010" } else { "#FFFFFF" })
-        LogBg      = $(if ($isLight) { "#F4F6F9" } else { Get-Shade $b.Panel -0.06 })
+        AccentHov  = $(if ($exact) { $b.Accent } else { Get-Shade $b.Accent $(if ($isLight) { -0.10 } else { 0.10 }) })
+        OnAccent   = $(if ((Get-ContrastRatio "#101010" $b.Accent) -ge (Get-ContrastRatio "#FFFFFF" $b.Accent)) { "#101010" } else { "#FFFFFF" })
+        LogBg      = $(if ($flat) { $b.Chrome } elseif ($isLight) { "#F4F6F9" } else { Get-Shade $b.Panel -0.06 })
         IsLight    = $isLight
     }
-    $t.ButtonBg    = $(if ($isLight) { Get-Shade $b.Panel -0.08 } else { Get-Shade $b.Panel 0.06 })
-    $t.ButtonHov   = $(if ($isLight) { Get-Shade $b.Panel -0.14 } else { Get-Shade $b.Panel 0.12 })
-    $t.LogText     = Get-ReadableColor $b.Text $t.LogBg 7.0
+    $t.ButtonBg    = $(if ($flat) { $b.Chrome } elseif ($isLight) { Get-Shade $b.Panel -0.08 } else { Get-Shade $b.Panel 0.06 })
+    $t.ButtonHov   = $(if ($flat) { $b.Chrome } elseif ($isLight) { Get-Shade $b.Panel -0.14 } else { Get-Shade $b.Panel 0.12 })
+    # The console log gets its own near-black surface on Toothpaste, so the rainbow text keeps its colours.
+    $t.ConsoleBg   = $(if ($b.ConsoleBg) { $b.ConsoleBg } else { $t.LogBg })
+    $t.LogText     = Get-ReadableColor $b.Text $t.ConsoleBg 7.0
 
     # Semantic colors, resolved separately for each surface they can appear on.
     foreach ($k in @("Good", "Warn", "Bad", "Info")) {
         $t["$($k)OnPanel"]  = Get-ReadableColor $script:SemanticBase[$k] $t.Panel  4.5
         $t["$($k)OnChrome"] = Get-ReadableColor $script:SemanticBase[$k] $t.Chrome 4.5
-        $t["$($k)OnLog"]    = Get-ReadableColor $script:SemanticBase[$k] $t.LogBg  4.5
+        $t["$($k)OnLog"]    = Get-ReadableColor $script:SemanticBase[$k] $t.ConsoleBg  4.5
     }
     # Accent text on the chrome surface -- this is the pairing that was unreadable
     # in v1 (cyan #40CEC9 sitting on the default white control background).
-    $t.AccentOnPanel  = Get-ReadableColor $b.Accent $t.Panel  4.5
-    $t.AccentOnChrome = Get-ReadableColor $b.Accent $t.Chrome 4.5
+    $t.AccentOnPanel  = $(if ($exact) { $b.Accent } else { Get-ReadableColor $b.Accent $t.Panel  4.5 })
+    $t.AccentOnChrome = $(if ($exact) { $b.Accent } else { Get-ReadableColor $b.Accent $t.Chrome 4.5 })
     $t.MutedOnChrome  = Get-ReadableColor $b.Muted  $t.Chrome 3.5
     $t.TextOnChrome   = Get-ReadableColor $b.Text   $t.Chrome 4.5
 
@@ -254,7 +266,25 @@ function Resolve-Theme([string]$name) {
     # Rainbow title, per surface.
     $t.RainbowOnChrome = @($script:RainbowBase | ForEach-Object { Get-ReadableColor $_ $t.Chrome 4.5 })
     $t.RainbowOnPanel  = @($script:RainbowBase | ForEach-Object { Get-ReadableColor $_ $t.Panel  4.5 })
-    $t.RainbowOnLog    = @($script:RainbowBase | ForEach-Object { Get-ReadableColor $_ $t.LogBg  4.5 })
+    $t.RainbowOnLog    = @($script:RainbowBase | ForEach-Object { Get-ReadableColor $_ $t.ConsoleBg  4.5 })
+
+    # Header band + drop-target surface (deep wine on Toothpaste; the chrome elsewhere).
+    $t.Header          = $(if ($b.Header) { $b.Header } else { $t.Chrome })
+    # Dark wine (TOOTHPASTE.md): section headings, header trim, native window border. Other themes: the accent.
+    $t.DropLine        = $(if ($b.DropLine) { $b.DropLine } else { $t.AccentOnPanel })
+    $t.Heading         = $t.DropLine
+    # Walked from white, not from Text: Text's own hue would tint the header label.
+    $t.TextOnHeader    = Get-ReadableColor "#FFFFFF" $t.Header 4.5
+    $t.MutedOnHeader   = Get-ReadableColor (Get-Shade $t.Header 0.55) $t.Header 4.5
+    # Secondary text on the page, and text/secondary text on a box (field, list, button).
+    $t.MutedOnPanel    = Get-ReadableColor $b.Muted $t.Panel 3.5
+    $t.TextOnBox       = Get-ReadableColor $b.Text  $t.ButtonBg 4.5
+    $t.MutedOnBox      = Get-ReadableColor $b.Muted $t.ButtonBg 3.5
+    # Window background and section border (TOOTHPASTE.md). Toothpaste: light page, dark-cyan
+    # section lines. Other themes keep their chrome window and border-colored card lines.
+    $t.Page            = $(if ($flat) { $b.Panel } else { $b.Chrome })
+    $t.SectionLine     = $(if ($flat) { $b.Chrome } else { $b.Border })
+    $t.RainbowOnHeader = @($script:RainbowBase | ForEach-Object { Get-ReadableColor $_ $t.Header 4.5 })
     return $t
 }
 
@@ -998,14 +1028,59 @@ function Save-Config($cfg) {
 # ============================================================
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms, System.Drawing
 
+# Title bar in the theme's band colour on Windows 11 (the wine band on the Toothpaste house style, the chrome
+# on every other theme). DWM attributes: 20 dark mode, 34 border, 35 caption, 36 caption text. Older Windows
+# ignores them and keeps its own frame.
+if (-not ('TitleBand.Dwm' -as [type])) {
+    Add-Type -Namespace TitleBand -Name Dwm -MemberDefinition '[System.Runtime.InteropServices.DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(System.IntPtr hwnd, int attr, ref int value, int size);'
+}
+function Set-TitleBand($Window, [string]$Band, [string]$Border = "") {
+    if (-not ($Window -is [System.Windows.Window]) -or [string]::IsNullOrEmpty($Band)) { return }
+    try {
+        $h = $Band.TrimStart('#')
+        $caption = [Convert]::ToInt32($h.Substring(0, 2), 16) -bor ([Convert]::ToInt32($h.Substring(2, 2), 16) -shl 8) -bor ([Convert]::ToInt32($h.Substring(4, 2), 16) -shl 16)
+        $lum = Get-RelativeLuminance $Band
+        $text = $(if ((($lum + 0.05) / 0.0552) -ge (1.05 / ($lum + 0.05))) { 0x101010 } else { 0xFFFFFF })
+        $edge = $caption
+        if ($Border) { $e = $Border.TrimStart('#'); $edge = [Convert]::ToInt32($e.Substring(0, 2), 16) -bor ([Convert]::ToInt32($e.Substring(2, 2), 16) -shl 8) -bor ([Convert]::ToInt32($e.Substring(4, 2), 16) -shl 16) }
+    } catch { return }
+    $apply = {
+        try {
+            $hwnd = (New-Object System.Windows.Interop.WindowInteropHelper($Window)).Handle
+            if ($hwnd -eq [IntPtr]::Zero) { return }
+            foreach ($pair in @(@(20, 1), @(34, $edge), @(35, $caption), @(36, $text))) {
+                $v = [int]$pair[1]
+                [void][TitleBand.Dwm]::DwmSetWindowAttribute($hwnd, $pair[0], [ref]$v, 4)
+            }
+        } catch {}
+    }.GetNewClosure()
+    if ((New-Object System.Windows.Interop.WindowInteropHelper($Window)).Handle -ne [IntPtr]::Zero) { & $apply }
+    else { $Window.Add_SourceInitialized($apply) }
+}
+
 function New-WpfWindow([string]$xamlString) {
     [xml]$xml = $xamlString
     $reader = New-Object System.Xml.XmlNodeReader $xml
-    return [Windows.Markup.XamlReader]::Load($reader)
+    $w = [Windows.Markup.XamlReader]::Load($reader)
+    if ($script:theme) { Set-TitleBand $w $script:theme.Band $script:theme.DropLine }
+    return $w
 }
 
 function New-Brush([string]$hex) {
     return [System.Windows.Media.BrushConverter]::new().ConvertFromString($hex)
+}
+
+# The finalized Toothpaste title gradient (2026-09-15): a true 8-stop linear
+# sweep, offsets matching the Python side's GRADIENT_STOPS in theme.py.
+function Get-TitleGradientXaml {
+    $stops = [ordered]@{
+        0.00 = "#612F3B"; 0.14 = "#6D2C3F"; 0.28 = "#6E1A43"; 0.42 = "#A5395A"
+        0.57 = "#F3F368"; 0.71 = "#728A07"; 0.85 = "#379B95"; 1.00 = "#007474"
+    }
+    $inner = ($stops.Keys | ForEach-Object {
+        '<GradientStop Color="{0}" Offset="{1}"/>' -f $stops[$_], $_
+    }) -join ""
+    return '<LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">' + $inner + '</LinearGradientBrush>'
 }
 
 # ============================================================
@@ -1023,46 +1098,82 @@ function New-Brush([string]$hex) {
 # line). They're Grids with an Auto/* column pair now, so content wraps.
 # ============================================================
 function Build-StyleXaml($t) {
+    # Toothpaste recipe (TOOTHPASTE.md, reference: Backtrack Brainiac). Square, flat, no bevels.
+    # Boxes (fields, lists, buttons) are ButtonBg with TextOnBox; sections are a 1px SectionLine
+    # border with a Heading title; the header band is Header with a 2px DropLine trim.
     $onCs2 = if ((Get-RelativeLuminance $t.Cs2OnPanel) -gt 0.45) { "#101010" } else { "#FFFFFF" }
     $onBg  = if ((Get-RelativeLuminance $t.BgOnPanel)  -gt 0.45) { "#101010" } else { "#FFFFFF" }
 
     $tpl = @'
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <SolidColorBrush x:Key="AccentBrush"   Color="@ACCENTPANEL@"/>
-    <SolidColorBrush x:Key="AccentRaw"     Color="@ACCENT@"/>
-    <SolidColorBrush x:Key="ChromeBrush"   Color="@CHROME@"/>
-    <SolidColorBrush x:Key="PanelBrush"    Color="@PANEL@"/>
-    <SolidColorBrush x:Key="PanelAltBrush" Color="@PANELALT@"/>
-    <SolidColorBrush x:Key="PanelHiBrush"  Color="@PANELHI@"/>
-    <SolidColorBrush x:Key="BorderBrush2"  Color="@BORDER@"/>
-    <SolidColorBrush x:Key="TextBrush"     Color="@TEXT@"/>
-    <SolidColorBrush x:Key="MutedBrush"    Color="@MUTED@"/>
-    <SolidColorBrush x:Key="GoodBrush"     Color="@GOOD@"/>
-    <SolidColorBrush x:Key="WarnBrush"     Color="@WARN@"/>
-    <SolidColorBrush x:Key="BadBrush"      Color="@BAD@"/>
-    <SolidColorBrush x:Key="LogBgBrush"    Color="@LOGBG@"/>
+    <SolidColorBrush x:Key="AccentBrush"        Color="@ACCENTPANEL@"/>
+    <SolidColorBrush x:Key="AccentRaw"          Color="@ACCENT@"/>
+    <SolidColorBrush x:Key="ChromeBrush"        Color="@CHROME@"/>
+    <SolidColorBrush x:Key="PageBrush"          Color="@PAGE@"/>
+    <SolidColorBrush x:Key="PanelBrush"         Color="@PANEL@"/>
+    <SolidColorBrush x:Key="PanelAltBrush"      Color="@PANELALT@"/>
+    <SolidColorBrush x:Key="PanelHiBrush"       Color="@PANELHI@"/>
+    <SolidColorBrush x:Key="BorderBrush2"       Color="@BORDER@"/>
+    <SolidColorBrush x:Key="SectionLineBrush"   Color="@SECTIONLINE@"/>
+    <SolidColorBrush x:Key="TextBrush"          Color="@TEXT@"/>
+    <SolidColorBrush x:Key="MutedBrush"         Color="@MUTED@"/>
+    <SolidColorBrush x:Key="HeadingBrush"       Color="@HEADING@"/>
+    <SolidColorBrush x:Key="DropLineBrush"      Color="@DROPLINE@"/>
+    <SolidColorBrush x:Key="HeaderBrush"        Color="@HEADER@"/>
+    <SolidColorBrush x:Key="TextOnHeaderBrush"  Color="@TEXTHEADER@"/>
+    <SolidColorBrush x:Key="MutedOnHeaderBrush" Color="@MUTEDHEADER@"/>
+    <SolidColorBrush x:Key="ButtonBgBrush"      Color="@BUTTONBG@"/>
+    <SolidColorBrush x:Key="ButtonHovBrush"     Color="@BUTTONHOV@"/>
+    <SolidColorBrush x:Key="TextOnBoxBrush"     Color="@TEXTBOX@"/>
+    <SolidColorBrush x:Key="MutedOnBoxBrush"    Color="@MUTEDBOX@"/>
+    <SolidColorBrush x:Key="OnAccentBrush"      Color="@ONACCENT@"/>
+    <SolidColorBrush x:Key="GoodBrush"          Color="@GOOD@"/>
+    <SolidColorBrush x:Key="WarnBrush"          Color="@WARN@"/>
+    <SolidColorBrush x:Key="BadBrush"           Color="@BAD@"/>
+    <SolidColorBrush x:Key="LogBgBrush"         Color="@LOGBG@"/>
+    <SolidColorBrush x:Key="ConsoleBgBrush"     Color="@CONSOLEBG@"/>
+    <LinearGradientBrush x:Key="TitleGradientBrush" StartPoint="0,0.5" EndPoint="1,0.5">@GRADIENTSTOPS@</LinearGradientBrush>
 
     <Style TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
     </Style>
 
-    <Style x:Key="CardHeader" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
-        <Setter Property="Margin" Value="0,0,0,10"/>
+    <!-- TOOTHPASTE.md section 4: header band + title -->
+    <Style x:Key="HeaderBand" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource HeaderBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DropLineBrush}"/>
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="Padding" Value="16,10"/>
+    </Style>
+    <Style x:Key="AppTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
+        <Setter Property="FontSize" Value="26"/>
+        <Setter Property="Foreground" Value="{StaticResource TitleGradientBrush}"/>
+    </Style>
+    <Style x:Key="AppBlurb" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="{StaticResource MutedOnHeaderBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
 
+    <!-- section 6: sections -->
+    <Style x:Key="CardHeader" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="{StaticResource HeadingBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
     <Style x:Key="Card" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource PanelBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource SectionLineBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="Padding" Value="16"/>
-        <Setter Property="Margin" Value="0,0,0,12"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Padding" Value="8"/>
+        <Setter Property="Margin" Value="0,0,0,8"/>
     </Style>
 
+    <!-- section 7: controls -->
     <Style TargetType="RadioButton">
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Setter Property="Background" Value="Transparent"/>
@@ -1075,29 +1186,26 @@ function Build-StyleXaml($t) {
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
                     <Border x:Name="Row" Background="Transparent" BorderBrush="Transparent"
-                            BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            BorderThickness="2" CornerRadius="0" Padding="{TemplateBinding Padding}">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Grid Grid.Column="0" Width="16" Height="16" VerticalAlignment="Top" Margin="0,1,0,0">
-                                <Ellipse x:Name="Ring" Stroke="{StaticResource BorderBrush2}" StrokeThickness="1.5" Fill="{StaticResource PanelAltBrush}"/>
-                                <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{StaticResource AccentBrush}" Visibility="Collapsed"/>
+                            <Grid Grid.Column="0" Width="14" Height="14" VerticalAlignment="Top" Margin="0,1,0,0">
+                                <Ellipse x:Name="Ring" Stroke="{StaticResource AccentRaw}" StrokeThickness="2" Fill="{StaticResource ButtonBgBrush}"/>
                             </Grid>
                             <ContentPresenter Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"/>
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Dot"  Property="Visibility" Value="Visible"/>
-                            <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource AccentBrush}"/>
-                            <Setter TargetName="Row"  Property="Background" Value="{StaticResource PanelHiBrush}"/>
-                            <Setter TargetName="Row"  Property="BorderBrush" Value="{StaticResource BorderBrush2}"/>
-                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Row" Property="Background" Value="{StaticResource PanelAltBrush}"/>
+                            <Setter TargetName="Row" Property="BorderBrush" Value="{StaticResource SectionLineBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="Fill" Value="{StaticResource AccentRaw}"/>
+                            <Setter TargetName="Row"  Property="BorderBrush" Value="{StaticResource AccentRaw}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.4"/>
@@ -1122,30 +1230,30 @@ function Build-StyleXaml($t) {
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Border x:Name="Box" Grid.Column="0" Width="17" Height="17"
-                                BorderBrush="{StaticResource BorderBrush2}" BorderThickness="1.5"
-                                Background="{StaticResource PanelAltBrush}" CornerRadius="4"
+                        <Border x:Name="Box" Grid.Column="0" Width="16" Height="16"
+                                BorderBrush="{StaticResource ButtonBgBrush}" BorderThickness="1.5"
+                                Background="{StaticResource ButtonBgBrush}" CornerRadius="0"
                                 VerticalAlignment="Top" Margin="0,1,0,0">
                             <Path x:Name="CheckMark" Data="M 3,8 L 6.5,11.5 L 13,3.5"
-                                  Stroke="@ONACCENT@" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Stroke="{StaticResource OnAccentBrush}" StrokeThickness="2"
+                                  StrokeStartLineCap="Square" StrokeEndLineCap="Square" StrokeLineJoin="Miter"
                                   Visibility="Collapsed"/>
                         </Border>
                         <ContentPresenter Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AccentRaw}"/>
+                        </Trigger>
                         <Trigger Property="IsChecked" Value="{x:Null}">
                             <Setter TargetName="Box" Property="Background" Value="{StaticResource MutedBrush}"/>
                             <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource MutedBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
-                            <Setter TargetName="Box" Property="Background" Value="{StaticResource AccentBrush}"/>
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                        </Trigger>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource AccentRaw}"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource AccentRaw}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.4"/>
@@ -1162,23 +1270,23 @@ function Build-StyleXaml($t) {
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FontSize" Value="10"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource MutedOnBoxBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Bd" Background="{StaticResource PanelAltBrush}"
-                            BorderBrush="{StaticResource BorderBrush2}" BorderThickness="1" CornerRadius="4">
+                    <Border x:Name="Bd" Background="{StaticResource ButtonBgBrush}"
+                            BorderBrush="{StaticResource ButtonBgBrush}" BorderThickness="1" CornerRadius="0">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="@CS2@"/>
+                        </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Bd" Property="Background"  Value="@CS2@"/>
                             <Setter TargetName="Bd" Property="BorderBrush" Value="@CS2@"/>
                             <Setter Property="Foreground" Value="@ONCS2@"/>
-                        </Trigger>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="@CS2@"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -1190,19 +1298,19 @@ function Build-StyleXaml($t) {
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Bd" Background="{StaticResource PanelAltBrush}"
-                            BorderBrush="{StaticResource BorderBrush2}" BorderThickness="1" CornerRadius="4">
+                    <Border x:Name="Bd" Background="{StaticResource ButtonBgBrush}"
+                            BorderBrush="{StaticResource ButtonBgBrush}" BorderThickness="1" CornerRadius="0">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="@BGC@"/>
+                        </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Bd" Property="Background"  Value="@BGC@"/>
                             <Setter TargetName="Bd" Property="BorderBrush" Value="@BGC@"/>
                             <Setter Property="Foreground" Value="@ONBG@"/>
-                        </Trigger>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="@BGC@"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -1218,15 +1326,15 @@ function Build-StyleXaml($t) {
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Bd" BorderBrush="#00000000" BorderThickness="2" CornerRadius="6" Padding="1">
+                    <Border x:Name="Bd" BorderBrush="#00000000" BorderThickness="2" CornerRadius="0" Padding="1">
                         <ContentPresenter/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="@TEXTCHROME@"/>
-                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="@MUTEDCHROME@"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource SectionLineBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DropLineBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -1235,38 +1343,37 @@ function Build-StyleXaml($t) {
     </Style>
 
     <Style TargetType="TextBox">
-        <Setter Property="Background" Value="{StaticResource PanelAltBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="8,6"/>
-        <Setter Property="CaretBrush" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Background" Value="{StaticResource ButtonBgBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextOnBoxBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="CaretBrush" Value="{StaticResource AccentRaw}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentRaw}"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
 
     <Style TargetType="ListBox">
-        <Setter Property="Background" Value="{StaticResource PanelAltBrush}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}"/>
-        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Background" Value="{StaticResource LogBgBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextOnBoxBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
     </Style>
 
     <Style TargetType="ListBoxItem">
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextOnBoxBrush}"/>
         <Setter Property="Padding" Value="8,5"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="0" Padding="{TemplateBinding Padding}">
                         <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}"/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}"/>
-                            <Setter Property="Foreground" Value="@ONACCENT@"/>
-                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PanelHiBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource ButtonHovBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentRaw}"/>
+                            <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -1275,24 +1382,22 @@ function Build-StyleXaml($t) {
     </Style>
 
     <Style x:Key="FlatButton" TargetType="Button">
-        <Setter Property="Background" Value="@BUTTONBG@"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="14,8"/>
+        <Setter Property="Background" Value="{StaticResource ButtonBgBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextOnBoxBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="12,5"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="0"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="@BUTTONHOV@"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource ButtonHovBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45"/>
@@ -1304,20 +1409,19 @@ function Build-StyleXaml($t) {
     </Style>
 
     <Style x:Key="MiniButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-        <Setter Property="Padding" Value="9,5"/>
+        <Setter Property="Padding" Value="9,4"/>
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="Margin" Value="0,0,6,0"/>
     </Style>
 
     <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
-        <Setter Property="Foreground" Value="@ONACCENT@"/>
-        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Background" Value="{StaticResource AccentRaw}"/>
+        <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
+        <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6"
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="0"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
@@ -1336,9 +1440,8 @@ function Build-StyleXaml($t) {
     </Style>
 
     <Style x:Key="DarkCombo" TargetType="ComboBox">
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-        <Setter Property="Background" Value="{StaticResource PanelAltBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush2}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextOnBoxBrush}"/>
+        <Setter Property="Background" Value="{StaticResource ButtonBgBrush}"/>
         <Setter Property="Height" Value="30"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
@@ -1349,25 +1452,24 @@ function Build-StyleXaml($t) {
                                       IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush2}"
-                                            BorderThickness="1" CornerRadius="6">
+                                    <Border Background="{StaticResource ButtonBgBrush}" BorderThickness="0" CornerRadius="0">
                                         <Path HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"
-                                              Data="M 0,0 L 9,0 L 4.5,5 Z" Fill="{StaticResource MutedBrush}"/>
+                                              Data="M 0,0 L 9,0 L 4.5,5 Z" Fill="{StaticResource TextOnBoxBrush}"/>
                                     </Border>
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
-                        <ContentPresenter IsHitTestVisible="False" Margin="12,0,28,0" VerticalAlignment="Center"
+                        <ContentPresenter IsHitTestVisible="False" Margin="8,0,28,0" VerticalAlignment="Center"
                                           Content="{TemplateBinding SelectionBoxItem}"
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                          TextElement.Foreground="{StaticResource TextBrush}"/>
+                                          TextElement.Foreground="{StaticResource TextOnBoxBrush}"/>
                         <Popup x:Name="Pop" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
                                AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
                             <Border MinWidth="{TemplateBinding ActualWidth}" MaxHeight="340"
-                                    Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush2}"
-                                    BorderThickness="1" CornerRadius="6" Margin="0,2,0,0">
+                                    Background="{StaticResource PanelHiBrush}" BorderBrush="{StaticResource SectionLineBrush}"
+                                    BorderThickness="1" CornerRadius="0">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <StackPanel IsItemsHost="True" Margin="4"/>
+                                    <StackPanel IsItemsHost="True"/>
                                 </ScrollViewer>
                             </Border>
                         </Popup>
@@ -1378,22 +1480,22 @@ function Build-StyleXaml($t) {
     </Style>
 
     <Style TargetType="ComboBoxItem">
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-        <Setter Property="Padding" Value="10,7"/>
+        <Setter Property="Foreground" Value="{StaticResource TextOnBoxBrush}"/>
+        <Setter Property="Padding" Value="8,6"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBoxItem">
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="0" Padding="{TemplateBinding Padding}">
                         <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}"/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PanelHiBrush}"/>
-                        </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}"/>
-                            <Setter Property="Foreground" Value="@ONACCENT@"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource ButtonHovBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentRaw}"/>
+                            <Setter Property="Foreground" Value="{StaticResource OnAccentBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -1403,30 +1505,43 @@ function Build-StyleXaml($t) {
 </ResourceDictionary>
 '@
 
+    $stops = [ordered]@{ "0" = "#612F3B"; "0.14" = "#6D2C3F"; "0.28" = "#6E1A43"; "0.42" = "#A5395A"
+                         "0.57" = "#F3F368"; "0.71" = "#728A07"; "0.85" = "#379B95"; "1" = "#007474" }
+    $gradient = ($stops.Keys | ForEach-Object { '<GradientStop Color="{0}" Offset="{1}"/>' -f $stops[$_], $_ }) -join ""
+
     $map = @{
-        "@ACCENT@"       = $t.Accent
-        "@ACCENTPANEL@"  = $t.AccentOnPanel
-        "@ACCENTHOV@"    = $t.AccentHov
-        "@CHROME@"       = $t.Chrome
-        "@PANEL@"        = $t.Panel
-        "@PANELALT@"     = $t.PanelAlt
-        "@PANELHI@"      = $t.PanelHi
-        "@BORDER@"       = $t.Border
-        "@TEXT@"         = $t.Text
-        "@MUTED@"        = $t.Muted
-        "@GOOD@"         = $t.GoodOnPanel
-        "@WARN@"         = $t.WarnOnPanel
-        "@BAD@"          = $t.BadOnPanel
-        "@LOGBG@"        = $t.LogBg
-        "@ONACCENT@"     = $t.OnAccent
-        "@BUTTONBG@"     = $t.ButtonBg
-        "@BUTTONHOV@"    = $t.ButtonHov
-        "@CS2@"          = $t.Cs2OnPanel
-        "@BGC@"          = $t.BgOnPanel
-        "@ONCS2@"        = $onCs2
-        "@ONBG@"         = $onBg
-        "@TEXTCHROME@"   = $t.TextOnChrome
-        "@MUTEDCHROME@"  = $t.MutedOnChrome
+        "@ACCENT@"        = $t.Accent
+        "@ACCENTPANEL@"   = $t.AccentOnPanel
+        "@ACCENTHOV@"     = $t.AccentHov
+        "@CHROME@"        = $t.Chrome
+        "@PAGE@"          = $t.Page
+        "@PANEL@"         = $t.Panel
+        "@PANELALT@"      = $t.PanelAlt
+        "@PANELHI@"       = $t.PanelHi
+        "@BORDER@"        = $t.Border
+        "@SECTIONLINE@"   = $t.SectionLine
+        "@TEXT@"          = $t.Text
+        "@MUTED@"         = $t.MutedOnPanel
+        "@HEADING@"       = $t.Heading
+        "@DROPLINE@"      = $t.DropLine
+        "@HEADER@"        = $t.Header
+        "@TEXTHEADER@"    = $t.TextOnHeader
+        "@MUTEDHEADER@"   = $t.MutedOnHeader
+        "@BUTTONBG@"      = $t.ButtonBg
+        "@BUTTONHOV@"     = $t.ButtonHov
+        "@TEXTBOX@"       = $t.TextOnBox
+        "@MUTEDBOX@"      = $t.MutedOnBox
+        "@ONACCENT@"      = $t.OnAccent
+        "@GOOD@"          = $t.GoodOnPanel
+        "@WARN@"          = $t.WarnOnPanel
+        "@BAD@"           = $t.BadOnPanel
+        "@LOGBG@"         = $t.LogBg
+        "@CONSOLEBG@"     = $t.ConsoleBg
+        "@CS2@"           = $t.Cs2OnPanel
+        "@BGC@"           = $t.BgOnPanel
+        "@ONCS2@"         = $onCs2
+        "@ONBG@"          = $onBg
+        "@GRADIENTSTOPS@" = $gradient
     }
     foreach ($k in $map.Keys) { $tpl = $tpl.Replace($k, $map[$k]) }
     return $tpl
@@ -1536,7 +1651,7 @@ function Show-ConfigDialog {
 
     $t          = $theme
     $styleXaml  = Build-StyleXaml $t
-    $titleRuns  = Get-RainbowRuns "CS2 Affinity Manager" $t.RainbowOnPanel
+    $titleGradient = Get-TitleGradientXaml
     $simVis     = if ($script:SimMode) { "Visible" } else { "Collapsed" }
 
     $mainXaml = @"
@@ -1545,7 +1660,7 @@ function Show-ConfigDialog {
         Title="CS2 Affinity Manager - Configure"
         Width="1040" Height="880" MinWidth="900" MinHeight="620"
         WindowStartupLocation="CenterScreen"
-        Background="$($t.Chrome)" FontFamily="Segoe UI" ResizeMode="CanResize"
+        Background="$($t.Page)" FontFamily="Segoe UI" ResizeMode="CanResize"
         TextOptions.TextRenderingMode="ClearType">
     <Window.Resources>
         <ResourceDictionary>
@@ -1564,24 +1679,24 @@ function Show-ConfigDialog {
         </Grid.RowDefinitions>
 
         <!-- ============ HEADER (fixed) ============ -->
-        <Border Grid.Row="0" Style="{StaticResource Card}" Margin="16,16,16,0" Padding="18,16">
+        <Border Grid.Row="0" Style="{StaticResource HeaderBand}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock FontSize="20" FontWeight="Bold">$titleRuns</TextBlock>
-                    <TextBlock x:Name="CpuInfoText" Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"
+                    <TextBlock Text="CS2 Affinity Manager" Style="{StaticResource AppTitle}"/>
+                    <TextBlock x:Name="CpuInfoText" Style="{StaticResource AppBlurb}" Margin="0,5,0,0"
                                TextWrapping="Wrap" FontSize="12"/>
-                    <TextBlock x:Name="UnsupportedNote" Foreground="{StaticResource WarnBrush}" Margin="0,6,0,0"
+                    <TextBlock x:Name="UnsupportedNote" Foreground="{StaticResource TextOnHeaderBrush}" FontFamily="Segoe UI Semibold" Margin="0,6,0,0"
                                TextWrapping="Wrap" FontSize="12" Visibility="Collapsed"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="20,0,0,0">
-                    <TextBlock Text="COLOR SCHEME" Style="{StaticResource CardHeader}" Margin="0,0,0,7"
+                    <TextBlock Text="COLOR SCHEME" Style="{StaticResource CardHeader}" Foreground="{StaticResource TextOnHeaderBrush}" Margin="0,0,0,7"
                                HorizontalAlignment="Right"/>
                     <WrapPanel x:Name="ThemeSwatches" MaxWidth="290" HorizontalAlignment="Right"/>
-                    <TextBlock x:Name="ThemeName" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                    <TextBlock x:Name="ThemeName" Foreground="{StaticResource MutedOnHeaderBrush}" FontSize="11"
                                Margin="0,7,0,0" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="Wrap"/>
                 </StackPanel>
             </Grid>
@@ -1652,8 +1767,8 @@ function Show-ConfigDialog {
                             <Button x:Name="BtnClearBg"    Content="Clear background" Style="{StaticResource MiniButton}"/>
                         </StackPanel>
 
-                        <Border Background="{StaticResource PanelAltBrush}" BorderBrush="{StaticResource BorderBrush2}"
-                                BorderThickness="1" CornerRadius="6" Padding="8,7" Margin="0,0,0,10">
+                        <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource SectionLineBrush}"
+                                BorderThickness="1" CornerRadius="0" Padding="8,7" Margin="0,0,0,10">
                             <StackPanel>
                                 <TextBlock x:Name="MatrixSummary" FontSize="12" FontWeight="SemiBold"/>
                                 <TextBlock x:Name="MatrixWarn" FontSize="11" Foreground="{StaticResource WarnBrush}"
@@ -1661,8 +1776,8 @@ function Show-ConfigDialog {
                             </StackPanel>
                         </Border>
 
-                        <Border BorderBrush="{StaticResource BorderBrush2}" BorderThickness="1" CornerRadius="6"
-                                Background="{StaticResource PanelAltBrush}">
+                        <Border BorderBrush="{StaticResource SectionLineBrush}" BorderThickness="1" CornerRadius="0"
+                                Background="{StaticResource PanelBrush}">
                             <ScrollViewer x:Name="MatrixScroll" MaxHeight="330" VerticalScrollBarVisibility="Auto" Padding="8">
                                 <WrapPanel x:Name="ThreadMatrix" Orientation="Horizontal"/>
                             </ScrollViewer>
@@ -1856,9 +1971,9 @@ function Show-ConfigDialog {
 
         $grp = New-Object System.Windows.Controls.Border
         $grp.Background      = New-Brush $t.Panel
-        $grp.BorderBrush     = New-Brush $t.Border
+        $grp.BorderBrush     = New-Brush $t.SectionLine
         $grp.BorderThickness = New-Object System.Windows.Thickness(1)
-        $grp.CornerRadius    = New-Object System.Windows.CornerRadius(6)
+        $grp.CornerRadius    = New-Object System.Windows.CornerRadius(0)
         $grp.Padding         = New-Object System.Windows.Thickness(7, 5, 7, 6)
         $grp.Margin          = New-Object System.Windows.Thickness(0, 0, 6, 6)
 
@@ -1892,7 +2007,7 @@ function Show-ConfigDialog {
             $sub.Text       = $(if ($wholeCore) { "Windows only" } else { "Used by Windows" })
             $sub.FontSize   = 8
             $sub.FontStyle  = "Italic"
-            $sub.Foreground = New-Brush $t.Muted
+            $sub.Foreground = New-Brush $t.MutedOnPanel
             $sub.Margin     = New-Object System.Windows.Thickness(0, -3, 0, 5)
             $sub.TextWrapping = "Wrap"
 
@@ -1912,8 +2027,8 @@ function Show-ConfigDialog {
             $gs.Children.Add($sub) | Out-Null
 
             # Mark the card itself so it reads as different before you hover.
-            $grp.BorderBrush = New-Brush $t.Muted
-            $hdr.Foreground  = New-Brush $t.Muted
+            $grp.BorderBrush = New-Brush $t.MutedOnPanel
+            $hdr.Foreground  = New-Brush $t.MutedOnPanel
         }
 
         # Sort explicitly. Without this the threads came out of the grouping in
@@ -2198,7 +2313,7 @@ function Show-LogWindow {
 
     $t         = $theme
     $styleXaml = Build-StyleXaml $t
-    $titleRuns = Get-RainbowRuns "CS2 Affinity Manager" $t.RainbowOnPanel
+    $titleGradient = Get-TitleGradientXaml
     $simVis    = if ($script:SimMode) { "Visible" } else { "Collapsed" }
     $simTitle  = if ($script:SimMode) { "CS2 Affinity Manager  --  SIMULATION BUILD" } else { "CS2 Affinity Manager" }
 
@@ -2207,7 +2322,7 @@ function Show-LogWindow {
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="$simTitle" Width="1000" Height="640" MinWidth="820" MinHeight="480"
         ShowInTaskbar="True"
-        WindowStartupLocation="CenterScreen" Background="$($t.Chrome)" FontFamily="Segoe UI" ResizeMode="CanResize">
+        WindowStartupLocation="CenterScreen" Background="$($t.Page)" FontFamily="Segoe UI" ResizeMode="CanResize">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -2215,6 +2330,13 @@ function Show-LogWindow {
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
+    <DockPanel>
+    <Border DockPanel.Dock="Top" Style="{StaticResource HeaderBand}">
+        <StackPanel>
+            <TextBlock Text="CS2 Affinity Manager" Style="{StaticResource AppTitle}"/>
+            <TextBlock Text="SIMULATION BUILD" Foreground="{StaticResource TextOnHeaderBrush}" FontFamily="Segoe UI Semibold" FontSize="11" Visibility="$simVis"/>
+        </StackPanel>
+    </Border>
     <Grid Margin="16">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="272"/>
@@ -2225,10 +2347,6 @@ function Show-LogWindow {
         <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0" Padding="18">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <TextBlock FontSize="17" FontWeight="Bold" Margin="0,0,0,4" TextWrapping="Wrap">$titleRuns</TextBlock>
-                <TextBlock Text="SIMULATION BUILD" Foreground="{StaticResource WarnBrush}" FontSize="10"
-                           FontWeight="Bold" Margin="0,0,0,12" Visibility="$simVis"/>
-                <Border Height="1" Background="{StaticResource BorderBrush2}" Margin="0,0,0,14"/>
 
                 <TextBlock Text="CPU" Style="{StaticResource CardHeader}" Margin="0,0,0,2"/>
                 <TextBlock x:Name="InfoCpu" Margin="0,0,0,12" TextWrapping="Wrap" FontSize="12"/>
@@ -2243,7 +2361,7 @@ function Show-LogWindow {
                 <TextBlock Text="BACKGROUND THREADS" Style="{StaticResource CardHeader}" Margin="0,0,0,2"/>
                 <TextBlock x:Name="InfoBgThreads" Margin="0,0,0,14" FontSize="12" TextWrapping="Wrap"/>
 
-                <Border Background="{StaticResource PanelAltBrush}" CornerRadius="6" Padding="10,8" Margin="0,0,0,14">
+                <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource SectionLineBrush}" BorderThickness="1" CornerRadius="0" Padding="10,8" Margin="0,0,0,14">
                     <TextBlock x:Name="InfoStatus" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
                 </Border>
 
@@ -2254,14 +2372,15 @@ function Show-LogWindow {
             </ScrollViewer>
         </Border>
 
-        <Border Grid.Column="2" Background="{StaticResource LogBgBrush}" BorderBrush="{StaticResource BorderBrush2}"
-                BorderThickness="1" CornerRadius="8" Padding="12">
+        <Border Grid.Column="2" Background="{StaticResource ConsoleBgBrush}"
+                BorderThickness="0" CornerRadius="0" Padding="12">
             <ScrollViewer x:Name="LogScroll" VerticalScrollBarVisibility="Auto">
                 <TextBlock x:Name="LogText" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
                            Foreground="$($t.LogText)"/>
             </ScrollViewer>
         </Border>
     </Grid>
+</DockPanel>
 </Window>
 "@
 
@@ -2344,7 +2463,7 @@ function Write-Log {
                 "bad"    { $refs.Theme.BadOnLog }
                 "info"   { $refs.Theme.InfoOnLog }
                 "muted"  { $refs.Theme.Muted }
-                "accent" { Get-ReadableColor $refs.Theme.Accent $refs.Theme.LogBg 4.5 }
+                "accent" { Get-ReadableColor $refs.Theme.Accent $refs.Theme.ConsoleBg 4.5 }
                 default  { $refs.Theme.LogText }
             }
         } else { $refs.Theme.LogText }

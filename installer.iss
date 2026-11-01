@@ -1,5 +1,5 @@
 #define MyAppName "CS2 Affinity Manager"
-#define MyAppVersion "1.9.2"
+#define MyAppVersion "1.9.4"
 #define MyAppExeName "CS2-AffinityManager.exe"
 #define MyAppPublisher "Sel"
 
