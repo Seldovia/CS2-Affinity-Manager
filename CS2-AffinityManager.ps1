@@ -187,17 +187,17 @@ function Get-Shade([string]$hex, [double]$delta) {
 # is derived and contrast-corrected against the surface it lands on.
 # ============================================================
 $script:ThemeCatalog = [ordered]@{
-    "Toothpaste" = @{ Chrome = "#007474"; Panel = "#379B95"; Border = "#379B95"; Text = "#0B2E2C"; Muted = "#4F8A85"; Accent = "#BF1363"; Header = "#BF1363"; DropLine = "#910E4B"; ConsoleBg = "#101010"; Blurb = "The house style -- light cyan page, dark cyan boxes, wine header with dark-wine trim, gradient title" }
-    "Inverted"   = @{ Chrome = "#BF1363"; Panel = "#1E1E1E"; Border = "#2E2E2E"; Text = "#EAEAEA"; Muted = "#8A8A8A"; Accent = "#43B3AE"; Blurb = "Toothpaste inverted -- wine chrome, mint accent" }
-    "Lagoon"     = @{ Chrome = "#0E2E2C"; Panel = "#132826"; Border = "#43B3AE"; Text = "#DDEFED"; Muted = "#7D9E9B"; Accent = "#BF1363"; Blurb = "Toothpaste lagoon -- dark mint, mint lines, wine accent" }
-    "Midnight"   = @{ Chrome = "#12161C"; Panel = "#1A1F27"; Border = "#2B3340"; Text = "#E6EDF3"; Muted = "#8B98A8"; Accent = "#4AB8FF"; Blurb = "Near-black, cool blue accent" }
-    "Graphite"   = @{ Chrome = "#1B1B1B"; Panel = "#242424"; Border = "#383838"; Text = "#ECECEC"; Muted = "#909090"; Accent = "#FF9F43"; Blurb = "Neutral grey, amber accent" }
-    "Nord"       = @{ Chrome = "#2E3440"; Panel = "#3B4252"; Border = "#4C566A"; Text = "#ECEFF4"; Muted = "#9AA5B4"; Accent = "#88C0D0"; Blurb = "Muted arctic blue-grey" }
-    "Matrix"     = @{ Chrome = "#080D08"; Panel = "#101810"; Border = "#1E2E1E"; Text = "#D8F0D8"; Muted = "#6E8A6E"; Accent = "#4CFF8F"; Blurb = "Black terminal, phosphor green" }
-    "Synthwave"  = @{ Chrome = "#241539"; Panel = "#32204D"; Border = "#48326B"; Text = "#F2E9FF"; Muted = "#A18CC0"; Accent = "#FF6BD6"; Blurb = "Deep purple, hot pink accent" }
-    "Ember"      = @{ Chrome = "#1A100E"; Panel = "#261A17"; Border = "#3A2823"; Text = "#F5E8E3"; Muted = "#A08880"; Accent = "#FF7043"; Blurb = "Warm charcoal, burnt orange" }
-    "Dracula"    = @{ Chrome = "#282A36"; Panel = "#343746"; Border = "#474B5E"; Text = "#F8F8F2"; Muted = "#9AA0B5"; Accent = "#BD93F9"; Blurb = "Classic dark violet palette" }
-    "Paper"      = @{ Chrome = "#E4E8EE"; Panel = "#FFFFFF"; Border = "#C9D1DB"; Text = "#1A1F27"; Muted = "#5C6773"; Accent = "#0E7C86"; Blurb = "Light mode -- teal on white" }
+    "Toothpaste" = @{ Chrome = "#007474"; Panel = "#379B95"; Border = "#379B95"; Text = "#0B2E2C"; Muted = "#4F8A85"; Accent = "#BF1363"; Header = "#BF1363"; DropLine = "#910E4B"; ConsoleBg = "#101010" }
+    "Inverted"   = @{ Chrome = "#BF1363"; Panel = "#1E1E1E"; Border = "#2E2E2E"; Text = "#EAEAEA"; Muted = "#8A8A8A"; Accent = "#43B3AE" }
+    "Lagoon"     = @{ Chrome = "#0E2E2C"; Panel = "#132826"; Border = "#43B3AE"; Text = "#DDEFED"; Muted = "#7D9E9B"; Accent = "#BF1363" }
+    "Midnight"   = @{ Chrome = "#12161C"; Panel = "#1A1F27"; Border = "#2B3340"; Text = "#E6EDF3"; Muted = "#8B98A8"; Accent = "#4AB8FF" }
+    "Graphite"   = @{ Chrome = "#1B1B1B"; Panel = "#242424"; Border = "#383838"; Text = "#ECECEC"; Muted = "#909090"; Accent = "#FF9F43" }
+    "Nord"       = @{ Chrome = "#2E3440"; Panel = "#3B4252"; Border = "#4C566A"; Text = "#ECEFF4"; Muted = "#9AA5B4"; Accent = "#88C0D0" }
+    "Matrix"     = @{ Chrome = "#080D08"; Panel = "#101810"; Border = "#1E2E1E"; Text = "#D8F0D8"; Muted = "#6E8A6E"; Accent = "#4CFF8F" }
+    "Synthwave"  = @{ Chrome = "#241539"; Panel = "#32204D"; Border = "#48326B"; Text = "#F2E9FF"; Muted = "#A18CC0"; Accent = "#FF6BD6" }
+    "Ember"      = @{ Chrome = "#1A100E"; Panel = "#261A17"; Border = "#3A2823"; Text = "#F5E8E3"; Muted = "#A08880"; Accent = "#FF7043" }
+    "Dracula"    = @{ Chrome = "#282A36"; Panel = "#343746"; Border = "#474B5E"; Text = "#F8F8F2"; Muted = "#9AA0B5"; Accent = "#BD93F9" }
+    "Paper"      = @{ Chrome = "#E4E8EE"; Panel = "#FFFFFF"; Border = "#C9D1DB"; Text = "#1A1F27"; Muted = "#5C6773"; Accent = "#0E7C86" }
 }
 
 $script:SemanticBase = @{ Good = "#3FBF6A"; Warn = "#D9A441"; Bad = "#E5484D"; Info = "#3B9EFF" }
@@ -277,7 +277,7 @@ function Resolve-Theme([string]$name) {
     $t.TextOnHeader    = Get-ReadableColor "#FFFFFF" $t.Header 4.5
     $t.MutedOnHeader   = Get-ReadableColor (Get-Shade $t.Header 0.55) $t.Header 4.5
     # Secondary text on the page, and text/secondary text on a box (field, list, button).
-    $t.MutedOnPanel    = Get-ReadableColor $b.Muted $t.Panel 3.5
+    $t.MutedOnPanel    = Get-ReadableColor $b.Muted $t.Panel 4.5
     $t.TextOnBox       = Get-ReadableColor $b.Text  $t.ButtonBg 4.5
     $t.MutedOnBox      = Get-ReadableColor $b.Muted $t.ButtonBg 3.5
     # Window background and section border. Toothpaste: light page, dark-cyan
@@ -1878,9 +1878,9 @@ function Show-ConfigDialog {
         return $sp
     }
 
-    $rbAffinityOnly.Content = New-TwoLineContent "Affinity only" "Assigns CPU cores. Leaves process priority untouched." $t.Text $t.Muted
-    $rbPriorityOnly.Content = New-TwoLineContent "Priority only" "Raises CS2 and lowers background priority. No core assignment." $t.Text $t.Muted
-    $rbBoth.Content         = New-TwoLineContent "Affinity + Priority" "Recommended. Both core assignment and priority class." $t.Text $t.Muted
+    $rbAffinityOnly.Content = New-TwoLineContent "Affinity only" "Assigns CPU cores. Leaves process priority untouched." $t.Text $t.MutedOnPanel
+    $rbPriorityOnly.Content = New-TwoLineContent "Priority only" "Raises CS2 and lowers background priority. No core assignment." $t.Text $t.MutedOnPanel
+    $rbBoth.Content         = New-TwoLineContent "Affinity + Priority" "Recommended. Both core assignment and priority class." $t.Text $t.MutedOnPanel
 
     # ---- Theme swatches ----
     $script:themeChange = $null
@@ -1889,7 +1889,7 @@ function Show-ConfigDialog {
         $tg  = New-Object System.Windows.Controls.Primitives.ToggleButton
         $tg.Style = $window.FindResource("SwatchToggle")
         $tg.Tag   = $tn
-        $tg.ToolTip = "$tn -- $($def.Blurb)"
+        $tg.ToolTip = $tn
 
         $sw = New-Object System.Windows.Controls.Border
         $sw.Background   = New-Brush $def.Chrome
@@ -1914,11 +1914,11 @@ function Show-ConfigDialog {
             # checked, which fights the "preview a pick, still Cancel-able"
             # behaviour this dialog wants.
             foreach ($sib in $themeSwatches.Children) { $sib.IsChecked = ($sib -eq $s) }
-            $themeNameLbl.Text = "$picked -- $($script:ThemeCatalog[$picked].Blurb)  (applies on Save)"
+            $themeNameLbl.Text = $picked
         })
         $themeSwatches.Children.Add($tg) | Out-Null
     }
-    $themeNameLbl.Text = "$($t.Name) -- $($script:ThemeCatalog[$t.Name].Blurb)"
+    $themeNameLbl.Text = $t.Name
 
     # ---- Profile radios ----
     if ($LockedToCustom) {
@@ -1931,7 +1931,7 @@ function Show-ConfigDialog {
             $rb.Tag = $key
             $label = $tiers[$key].Label
             if ($key -eq $recommendedTier) { $label += "   ·   Recommended for this CPU" }
-            $rb.Content = New-TwoLineContent $label $tiers[$key].Desc $t.Text $t.Muted
+            $rb.Content = New-TwoLineContent $label $tiers[$key].Desc $t.Text $t.MutedOnPanel
             if (($config.planTier -eq "Auto" -and $key -eq $recommendedTier) -or $config.planTier -eq $key) { $rb.IsChecked = $true }
             $rb.Add_Checked({
                 param($s, $e)
@@ -1947,7 +1947,7 @@ function Show-ConfigDialog {
     }
     $rbCustom = New-Object System.Windows.Controls.RadioButton
     $rbCustom.GroupName = "PlanTier"; $rbCustom.Tag = "Custom"
-    $rbCustom.Content = New-TwoLineContent "Custom" "Whatever you've set in the thread assignment grid below." $t.Text $t.Muted
+    $rbCustom.Content = New-TwoLineContent "Custom" "Whatever you've set in the thread assignment grid below." $t.Text $t.MutedOnPanel
     if ($config.planTier -eq "Custom" -or $LockedToCustom) { $rbCustom.IsChecked = $true }
     $planPanel.Children.Add($rbCustom) | Out-Null
     $script:mRadios["Custom"] = $rbCustom
