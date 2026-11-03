@@ -1,5 +1,5 @@
 #define MyAppName "CS2 Affinity Manager"
-#define MyAppVersion "1.9.4"
+#define MyAppVersion "2.2"
 #define MyAppExeName "CS2-AffinityManager.exe"
 #define MyAppPublisher "Sel"
 
@@ -128,15 +128,15 @@ begin
     CpuSupported := False;
   end;
 
-  // Mirrors Get-RecommendedTierName in CS2-AffinityManager.ps1 v1.8.
+  // Mirrors Get-RecommendedTierName in CS2-AffinityManager.ps1.
   // Profile order of preference:
   //   Intel hybrid   -> Intel Hybrid   (P-cores game, E-cores background)
   //   multi-CCD AMD  -> Single Die     (keep the game inside one chiplet)
   //   4+ cores       -> Standard
   //   anything less  -> Balanced       (no isolation; holding threads back hurts)
   //
-  // v1.8 dropped the hard 4-32 core support window. The script now handles any
-  // CPU with 2+ threads, so the installer no longer refuses to recommend.
+  // The script handles any
+  // CPU with 2+ threads, so the installer always gives a recommendation.
   // Intel hybrid detection: E-cores lack HT, so P-cores = threads - cores.
   if CpuThreads >= 2 then
   begin
@@ -289,6 +289,40 @@ begin
       '}';
 
   SaveStringToFile(ConfigPath, Json, False);
+end;
+
+// Runs the silent uninstaller of every "CS2 Affinity Manager" entry under one
+// registry root, so older installs (other AppIds, other folders) are removed
+// before the new copy is laid down. The uninstaller keeps
+// %LOCALAPPDATA%\CS2-AffinityManager, so settings survive.
+procedure UninstallMatching(RootKey: Integer; UninstallBase: String);
+var
+  Names: TArrayOfString;
+  I, ResultCode: Integer;
+  KeyPath, DisplayName, UninstallString: String;
+begin
+  if not RegGetSubkeyNames(RootKey, UninstallBase, Names) then
+    exit;
+  for I := 0 to GetArrayLength(Names) - 1 do
+  begin
+    KeyPath := UninstallBase + '\' + Names[I];
+    if RegQueryStringValue(RootKey, KeyPath, 'DisplayName', DisplayName) and
+       (Pos('CS2 Affinity Manager', DisplayName) = 1) and
+       RegQueryStringValue(RootKey, KeyPath, 'UninstallString', UninstallString) then
+      // A failed old uninstall is skipped, not fatal. Aborting here would leave
+      // the earlier removals done and no copy installed at all.
+      Exec(RemoveQuotes(UninstallString), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
+           '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
+end;
+
+// Inno calls this before any file is copied.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  UninstallMatching(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall');
+  UninstallMatching(HKLM, 'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall');
+  UninstallMatching(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall');
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

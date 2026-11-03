@@ -8,7 +8,7 @@
 )
 
 # ============================================================
-#  CS2 Affinity Manager  --  v1.9.4
+#  CS2 Affinity Manager  --  2.2
 #  WPF / PowerShell.  Compile with ps2exe:
 #
 #    Release build (installer ships this one):
@@ -204,7 +204,7 @@ $script:SemanticBase = @{ Good = "#3FBF6A"; Warn = "#D9A441"; Bad = "#E5484D"; I
 $script:RainbowBase  = @("#FF5C5C", "#FF9F4A", "#FFE24A", "#8CFF6B", "#4AFFD6", "#4AB8FF", "#B36BFF", "#FF6BD6")
 
 # Expands a theme's six base colors into the full brush table the UI needs.
-# Renamed in v1.8: the default theme used to be called "Cyberpunk",
+# The default theme used to be called "Cyberpunk",
 # which described nothing about it. Existing config.json files still say so,
 # so map the old name forward rather than silently resetting the user's theme.
 $script:ThemeAliases = @{ "Cyberpunk" = "Toothpaste" }
@@ -218,7 +218,7 @@ function Resolve-Theme([string]$name) {
     if (-not $script:ThemeCatalog.Contains($name)) { $name = "Toothpaste" }
     $b       = $script:ThemeCatalog[$name]
     $isLight = (Get-RelativeLuminance $b.Panel) -gt 0.5
-    # Toothpaste house rules (2026-09-15): one flat cyan for every surface (no
+    # Toothpaste: one flat cyan for every surface (no
     # derived shades), and the wine accent used exactly as authored, never
     # contrast-walked. Every other theme keeps the old derived-shade math.
     $flat  = ($name -eq "Toothpaste")
@@ -270,7 +270,7 @@ function Resolve-Theme([string]$name) {
 
     # Header band + drop-target surface (deep wine on Toothpaste; the chrome elsewhere).
     $t.Header          = $(if ($b.Header) { $b.Header } else { $t.Chrome })
-    # Dark wine (TOOTHPASTE.md): section headings, header trim, native window border. Other themes: the accent.
+    # Dark wine: section headings, header trim, native window border. Other themes: the accent.
     $t.DropLine        = $(if ($b.DropLine) { $b.DropLine } else { $t.AccentOnPanel })
     $t.Heading         = $t.DropLine
     # Walked from white, not from Text: Text's own hue would tint the header label.
@@ -280,7 +280,7 @@ function Resolve-Theme([string]$name) {
     $t.MutedOnPanel    = Get-ReadableColor $b.Muted $t.Panel 3.5
     $t.TextOnBox       = Get-ReadableColor $b.Text  $t.ButtonBg 4.5
     $t.MutedOnBox      = Get-ReadableColor $b.Muted $t.ButtonBg 3.5
-    # Window background and section border (TOOTHPASTE.md). Toothpaste: light page, dark-cyan
+    # Window background and section border. Toothpaste: light page, dark-cyan
     # section lines. Other themes keep their chrome window and border-colored card lines.
     $t.Page            = $(if ($flat) { $b.Panel } else { $b.Chrome })
     $t.SectionLine     = $(if ($flat) { $b.Chrome } else { $b.Border })
@@ -1028,7 +1028,7 @@ function Save-Config($cfg) {
 # ============================================================
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms, System.Drawing
 
-# Title bar in the theme's band colour on Windows 11 (the wine band on the Toothpaste house style, the chrome
+# Title bar in the theme's band colour on Windows 11 (the wine band on the Toothpaste style, the chrome
 # on every other theme). DWM attributes: 20 dark mode, 34 border, 35 caption, 36 caption text. Older Windows
 # ignores them and keeps its own frame.
 if (-not ('TitleBand.Dwm' -as [type])) {
@@ -1070,7 +1070,7 @@ function New-Brush([string]$hex) {
     return [System.Windows.Media.BrushConverter]::new().ConvertFromString($hex)
 }
 
-# The finalized Toothpaste title gradient (2026-09-15): a true 8-stop linear
+# Toothpaste title gradient: a true 8-stop linear
 # sweep, offsets matching the Python side's GRADIENT_STOPS in theme.py.
 function Get-TitleGradientXaml {
     $stops = [ordered]@{
@@ -1098,7 +1098,7 @@ function Get-TitleGradientXaml {
 # line). They're Grids with an Auto/* column pair now, so content wraps.
 # ============================================================
 function Build-StyleXaml($t) {
-    # Toothpaste recipe (TOOTHPASTE.md, reference: Backtrack Brainiac). Square, flat, no bevels.
+    # Toothpaste recipe. Square, flat, no bevels.
     # Boxes (fields, lists, buttons) are ButtonBg with TextOnBox; sections are a 1px SectionLine
     # border with a Heading title; the header band is Header with a 2px DropLine trim.
     $onCs2 = if ((Get-RelativeLuminance $t.Cs2OnPanel) -gt 0.45) { "#101010" } else { "#FFFFFF" }
@@ -1139,7 +1139,7 @@ function Build-StyleXaml($t) {
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
     </Style>
 
-    <!-- TOOTHPASTE.md section 4: header band + title -->
+    <!-- Header band + title -->
     <Style x:Key="HeaderBand" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource HeaderBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource DropLineBrush}"/>
